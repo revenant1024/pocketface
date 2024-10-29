@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>pocketface</title>
+    <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/6.26.0/babel.min.js"></script>
+    <script src="https://kit.fontawesome.com/f6c5f49546.js" crossorigin="anonymous"></script>
+    <style>
+        #label-container div {
+            font-size: 0.8em; /* 글씨 크기를 작게 조정 */
+            margin-top: 5px; /* 각 예측 결과 간격을 조정 */
+        }
+    </style>
+</head>
+
+<body>
+    <section class="section">
+        <h1 class="title" style="text-align: left; margin: 100;">안녕하세요. </h1>
+        <h2 class="subtitle">귀여운 포켓몬과 함께 여행을 떠나볼까요?</h2>
+    </section>
+
+    <div class="container">
+        <div id="root"></div>
+        
+        <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+
+        <script type="text/babel">
+            const URL = "https://teachablemachine.withgoogle.com/models/ChhQESqgY/";
+            let model, maxPredictions;
+
+            async function init() {
+                const modelURL = URL + "model.json";
+                const metadataURL = URL + "metadata.json";
+
+                model = await tmImage.load(modelURL, metadataURL);
+                maxPredictions = model.getTotalClasses();
+            }
+
+            async function predict(setHighestPrediction) {
+                const image = document.getElementById("uploaded-image");
+                const prediction = await model.predict(image);
+
+                const labelContainer = document.getElementById("label-container");
+                labelContainer.innerHTML = ""; // 예측을 새로 표시하기 전에 기존 결과 지우기
+
+                // 예측 결과를 내림차순으로 정렬
+                const sortedPredictions = prediction.sort((a, b) => b.probability - a.probability);
+
+                // 가장 높은 확률을 가진 예측 결과 찾기
+                let highestPrediction = { className: '', probability: 0 };
+
+                // 예측 결과를 labelContainer에 추가
+                sortedPredictions.forEach(pred => {
+                    const resultDiv = document.createElement("div");
+                    resultDiv.innerHTML = `${pred.className}: ${pred.probability.toFixed(2)}`;
+                    labelContainer.appendChild(resultDiv);
+
+                    // 가장 높은 확률 찾기
+                    if (pred.probability > highestPrediction.probability) {
+                        highestPrediction = pred;
+                    }
+                });
+
+                // 가장 높은 예측 결과를 상태로 설정
+                setHighestPrediction(highestPrediction.className);
+            }
+
+            const ImgUpload = ({ onChange, src }) => (
+                <label id="pocketface" htmlFor="photo-upload" className="custom-file-upload fas">
+                    <div className="img-wrap img-upload">
+                        <img id="uploaded-image" src={src} alt="Preview" />
+                    </div>
+                    <input id="photo-upload" type="file" onChange={onChange} />
+                </label>
+            );
+
+            const Name = ({ onChange, value }) => (
+                <div className="field">
+                    <label htmlFor="name">name:</label>
+                    <input
+                        id="name"
+                        type="text"
+                        onChange={onChange}
+                        maxLength="25"
+                        value={value}
+                        placeholder="Alexa"
+                        required
+                    />
+                </div>
+            );
+
+            const Status = ({ onChange, value }) => (
+                <div className="field">
+                    <label htmlFor="status">status:</label>
+                    <input
+                        id="status"
+                        type="text"
+                        onChange={onChange}
+                        maxLength="35"
+                        value={value}
+                        placeholder="It's a nice day!"
+                        required
+                    />
+                </div>
+            );
+
+            const Edit = ({ onSubmit, onPredict, children, highestPrediction }) => {
+                // 포켓몬 이름에 따른 메시지 맵
+                const messages = {
+                    "마자용": "당신은 마자용처럼 헤벌쭉하군요!",
+                    "피카츄": "당신은 피카츄처럼 전기를 잘 쏠 것 같군요!",
+                    "꼬부기": "당신은 꼬북이처럼 물대포를 잘 뿜겠네요!",
+                    "또가스": "혹시 독가스를 잘 뿜으시나요?",
+                    "나옹": "나는 나옹이다옹!",
+                    "뮤": "무 아니죠!! 뮤우뮤!",
+                    "야도란": "당신은 커여운 핑크돼지!",
+                    "이브이": "당신은 상위 1% 꽃미모의 이브이~!",
+                    "이상해씨": "씨 씨!"
+                    // 다른 포켓몬과 메시지를 추가하세요
+                };
+
+                const message = highestPrediction ? messages[highestPrediction] || "예측된 포켓몬이 없습니다." : "나는 어떤 포켓몬과 닮았을까요?";
+
+                return (
+                    <div className="card">
+                        <form onSubmit={onSubmit}>
+                            <h3>{message}</h3>
+                            {children}
+                            <button type="button" onClick={onPredict}>예측</button>
+                        </form>
+                        <div id="label-container"></div> {/* label-container를 버튼 아래에 위치시킴 */}
+                    </div>
+                );
+            };
+
+            class CardProfile extends React.Component {
+                state = {
+                    file: '',
+                    imagePreviewUrl: 'https://github.com/OlgaKoplik/CodePen/blob/master/profile.jpg?raw=true',
+                    name: '',
+                    status: '',
+                    active: 'edit',
+                    highestPrediction: ''
+                };
+
+                componentDidMount() {
+                    init(); // 페이지 로드 시 모델 초기화
+                }
+
+                photoUpload = (e) => {
+                    e.preventDefault();
+                    const reader = new FileReader();
+                    const file = e.target.files[0];
+                    reader.onloadend = () => {
+                        this.setState({
+                            file: file,
+                            imagePreviewUrl: reader.result
+                        });
+                    };
+                    reader.readAsDataURL(file);
+                };
+
+                editName = (e) => {
+                    this.setState({ name: e.target.value });
+                };
+
+                editStatus = (e) => {
+                    this.setState({ status: e.target.value });
+                };
+
+                handleSubmit = (e) => {
+                    e.preventDefault();
+                    this.setState((prevState) => ({
+                        active: prevState.active === 'edit' ? 'profile' : 'edit'
+                    }));
+                };
+
+                render() {
+                    const { imagePreviewUrl, name, status, active, highestPrediction } = this.state;
+                    return (
+                        <div>
+                            {active === 'edit' ? (
+                                <Edit onSubmit={this.handleSubmit} onPredict={() => predict(prediction => this.setState({ highestPrediction: prediction }))} highestPrediction={highestPrediction}>
+                                    <ImgUpload onChange={this.photoUpload} src={imagePreviewUrl} />
+                                    <Name onChange={this.editName} value={name} />
+                                    <Status onChange={this.editStatus} value={status} />
+                                </Edit>
+                            ) : (
+                                <div className="card">
+                                    <h1>Kwitter</h1>
+                                    <div className="img-wrap">
+                                        <img src={imagePreviewUrl} alt="Profile" />
+                                    </div>
+                                    <div className="name">{name}</div>
+                                    <div className="status">{status}</div>
+                                    <button type="button" onClick={() => this.setState({ active: 'edit' })}>Edit Profile</button>
+                                </div>
+                            )}
+                        </div>
+                    );
+                }
+            }
+
+            ReactDOM.render(<CardProfile />, document.getElementById('root'));
+        </script>
+    </div>
+</body>
+</html>
+
+<!-- AddToAny BEGIN -->
+<!-- AddToAny BEGIN -->
+<div class="a2a_kit a2a_kit_size_32 a2a_default_style" style="display: flex; justify-content: center; margin-top: 50px;">
+    <a class="a2a_dd" href="https://www.addtoany.com/share"></a>
+    <a class="a2a_button_facebook"></a>
+    <a class="a2a_button_threads"></a>
+    <a class="a2a_button_sms"></a>
+    <a class="a2a_button_twitter"></a>
+    <a class="a2a_button_email"></a>
+    <a class="a2a_button_telegram"></a>
+    <a class="a2a_button_google_gmail"></a>
+    </div>
+    <script async src="https://static.addtoany.com/menu/page.js"></script>
+    <!-- AddToAny END -->
+    <div id="disqus_thread"></div>
+<script>
+    /**
+    *  RECOMMENDED CONFIGURATION VARIABLES: EDIT AND UNCOMMENT THE SECTION BELOW TO INSERT DYNAMIC VALUES FROM YOUR PLATFORM OR CMS.
+    *  LEARN WHY DEFINING THESE VARIABLES IS IMPORTANT: https://disqus.com/admin/universalcode/#configuration-variables    */
+    /*
+    var disqus_config = function () {
+    this.page.url = PAGE_URL;  // Replace PAGE_URL with your page's canonical URL variable
+    this.page.identifier = PAGE_IDENTIFIER; // Replace PAGE_IDENTIFIER with your page's unique identifier variable
+    };
+    */
+    (function() { // DON'T EDIT BELOW THIS LINE
+    var d = document, s = d.createElement('script');
+    s.src = 'https://pocketface11.disqus.com/embed.js';
+    s.setAttribute('data-timestamp', +new Date());
+    (d.head || d.body).appendChild(s);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</body>
+</html>
